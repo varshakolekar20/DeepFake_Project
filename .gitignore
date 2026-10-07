@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+__pycache__/
+backend/app/**/__pycache__/
+backend/**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Temporary uploads and generated caches
+backend/temp_uploads/*
+!backend/temp_uploads/.gitkeep
+backend/feedback_logs/*.tmp
+*.log
+*.tmp
+.vite/
+frontend/.vite/
+
+# Large local zip files
+*.zip
+
+# OS and Editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.ipynb_checkpoints/

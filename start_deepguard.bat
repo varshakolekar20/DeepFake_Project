@@ -14,9 +14,19 @@ start "DeepGuard Frontend" cmd /k "npm run dev -- --host"
 cd ..
 
 echo.
+echo Waiting 4 seconds for servers to initialize...
+timeout /t 4 >nul
+
+echo Opening DeepGuard Web Application in your browser...
+start http://localhost:5173/
+
+echo.
 echo ========================================================
-echo DeepGuard is starting up!
-echo Backend Docs: http://127.0.0.1:8000/docs
-echo Frontend App: http://localhost:5173/
+echo DeepGuard is running!
+echo   - Frontend App:   http://localhost:5173/
+echo   - Backend Docs:   http://127.0.0.1:8000/docs
+echo.
+echo You can keep the backend and frontend terminal windows open.
+echo Close them whenever you want to stop the servers.
 echo ========================================================
 pause

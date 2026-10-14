@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: deepguard-ai
+    runtime: docker
+    dockerfilePath: Dockerfile
+    plan: free
+    region: oregon
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: DEBUG
+        value: false

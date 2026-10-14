@@ -1,17 +1,19 @@
 import React, { useState, useRef } from 'react';
-import { UploadCloud, Image as ImageIcon, Film, RefreshCw, Download, FileText, CheckCircle2, AlertCircle, Sparkles, X, ShieldAlert, Sliders } from 'lucide-react';
+import { UploadCloud, Image as ImageIcon, Film, RefreshCw, Download, FileText, CheckCircle2, AlertCircle, Sparkles, X, ShieldAlert, Sliders, Camera } from 'lucide-react';
 import VerdictCard from '../components/VerdictCard';
 import HeatmapViewer from '../components/HeatmapViewer';
 import QualityMetrics from '../components/QualityMetrics';
 import VideoTimeline from '../components/VideoTimeline';
 import FaceSelector from '../components/FaceSelector';
 import FeedbackModal from '../components/FeedbackModal';
+import LiveCameraCapture from '../components/LiveCameraCapture';
 
 export default function Analyze({ onSaveHistory }) {
   const [mode, setMode] = useState('facial'); // 'facial' | 'aigen'
   const [file, setFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [fileType, setFileType] = useState(null); // 'image' | 'video'
+  const [showCamera, setShowCamera] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [activeJobId, setActiveJobId] = useState(null);
@@ -105,6 +107,7 @@ export default function Analyze({ onSaveHistory }) {
       setResult(null);
       setSelectedFaceId(null);
       setProgress(0);
+      setShowCamera(false);
       if (sample.mode) setMode(sample.mode);
 
       const response = await fetch(sample.url);
@@ -275,6 +278,7 @@ export default function Analyze({ onSaveHistory }) {
     setFile(null);
     setPreviewUrl(null);
     setFileType(null);
+    setShowCamera(false);
     setResult(null);
     setSelectedFaceId(null);
     setErrorMessage(null);
@@ -399,21 +403,82 @@ export default function Analyze({ onSaveHistory }) {
         </div>
       </div>
 
-      {/* 3. Upload & Dropzone Area */}
-      {!file ? (
+      {/* 3. Input Method Action Bar */}
+      <div className="flex flex-wrap items-center justify-center gap-3">
+        <button
+          onClick={() => {
+            setShowCamera(false);
+            if (fileInputRef.current) {
+              fileInputRef.current.accept = "image/jpeg,image/png,image/webp";
+              fileInputRef.current.click();
+            }
+          }}
+          className="flex items-center space-x-2 px-5 py-2.5 rounded-xl bg-white dark:bg-navy-900 border border-slate-200 dark:border-slate-800 hover:border-teal-500/60 shadow-sm hover:shadow text-slate-800 dark:text-slate-200 font-semibold text-xs sm:text-sm transition-all"
+        >
+          <ImageIcon className="w-4 h-4 text-teal-500" />
+          <span>Upload Image</span>
+        </button>
+
+        <button
+          onClick={() => {
+            handleReset();
+            setShowCamera(true);
+          }}
+          className={`flex items-center space-x-2 px-5 py-2.5 rounded-xl border shadow-sm hover:shadow text-xs sm:text-sm transition-all font-semibold ${
+            showCamera
+              ? 'bg-teal-500 text-navy-950 border-teal-400 font-bold'
+              : 'bg-white dark:bg-navy-900 border-slate-200 dark:border-slate-800 hover:border-teal-500/60 text-slate-800 dark:text-slate-200'
+          }`}
+        >
+          <Camera className="w-4 h-4 text-teal-500" />
+          <span>Use Live Camera</span>
+        </button>
+
+        {mode === 'facial' && (
+          <button
+            onClick={() => {
+              setShowCamera(false);
+              if (fileInputRef.current) {
+                fileInputRef.current.accept = "video/mp4,video/quicktime,video/x-msvideo";
+                fileInputRef.current.click();
+              }
+            }}
+            className="flex items-center space-x-2 px-5 py-2.5 rounded-xl bg-white dark:bg-navy-900 border border-slate-200 dark:border-slate-800 hover:border-teal-500/60 shadow-sm hover:shadow text-slate-800 dark:text-slate-200 font-semibold text-xs sm:text-sm transition-all"
+          >
+            <Film className="w-4 h-4 text-cyan-500" />
+            <span>Upload Video</span>
+          </button>
+        )}
+      </div>
+
+      {/* Hidden file input for file selection */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept={mode === 'facial' ? "image/*,video/*" : "image/*"}
+        onChange={(e) => handleFileChange(e.target.files[0])}
+        className="hidden"
+      />
+
+      {/* Live Camera Studio View */}
+      {showCamera && (
+        <LiveCameraCapture
+          onCapture={(capturedFile) => {
+            setShowCamera(false);
+            handleFileChange(capturedFile);
+          }}
+          onClose={() => setShowCamera(false)}
+        />
+      )}
+
+      {/* 4. Upload & Dropzone Area */}
+      {!showCamera && !file ? (
         <div
           onDragOver={(e) => e.preventDefault()}
           onDrop={handleDrop}
           onClick={() => fileInputRef.current?.click()}
           className="border-2 border-dashed border-slate-300 dark:border-slate-700/80 hover:border-teal-500/60 rounded-3xl p-10 sm:p-14 text-center cursor-pointer bg-white/50 dark:bg-navy-900/50 hover:bg-slate-50 dark:hover:bg-navy-900/80 transition-all group shadow-sm"
         >
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept={mode === 'facial' ? "image/*,video/*" : "image/*"}
-            onChange={(e) => handleFileChange(e.target.files[0])}
-            className="hidden"
-          />
           <div className="w-16 h-16 mx-auto rounded-2xl bg-teal-500/10 border border-teal-500/30 flex items-center justify-center text-teal-500 group-hover:scale-110 transition-transform">
             <UploadCloud className="w-8 h-8 stroke-[1.8]" />
           </div>
@@ -426,7 +491,7 @@ export default function Analyze({ onSaveHistory }) {
               : 'Supports JPG, PNG, WEBP static synthetic images (up to 15MB)'}
           </p>
         </div>
-      ) : (
+      ) : !showCamera && file ? (
         /* File Preview & Actions Bar */
         <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-navy-900/90 p-6 shadow-sm space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
@@ -506,7 +571,7 @@ export default function Analyze({ onSaveHistory }) {
             </div>
           )}
         </div>
-      )}
+      ) : null}
 
       {/* 4. Error Notice */}
       {errorMessage && (
@@ -590,6 +655,7 @@ export default function Analyze({ onSaveHistory }) {
               faceCount={result.face_count}
               format={fileType}
               size={file ? (file.size / (1024 * 1024)).toFixed(2) : '1.0'}
+              isVideo={fileType === 'video'}
             />
           )}
 

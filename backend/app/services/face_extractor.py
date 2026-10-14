@@ -31,6 +31,9 @@ class FaceExtractor:
         # Contrast: standard deviation of pixel intensities
         contrast_std = float(np.std(gray))
         is_low_contrast = contrast_std < 20.0
+
+        # Mean brightness
+        mean_brightness = float(np.mean(gray))
         
         return {
             "width": int(w),
@@ -39,6 +42,7 @@ class FaceExtractor:
             "is_blurry": bool(is_blurry),
             "contrast_std": round(float(contrast_std), 2),
             "is_low_contrast": bool(is_low_contrast),
+            "mean_brightness": round(float(mean_brightness), 2),
             "quality_pass": bool(not is_blurry and not is_low_contrast and (w >= 64 and h >= 64))
         }
 

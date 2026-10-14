@@ -80,10 +80,23 @@ Modern generative models (such as **Face-Swap GANs**, **Diffusion Reenactments**
 - **$0.35 < \text{Score} < 0.55$**: **`INCONCLUSIVE — Unable to determine reliably`**
 - **No Faces / Severe Blur**: **`Unable to analyze media`**
 
-### 7. 📑 Forensic Audit Export & Session History
+### 7. 📷 Live Camera Studio (`LiveCameraCapture.jsx`)
+- **Direct Sensor Capture**: Users can choose **"Use Live Camera"** alongside Image and Video upload.
+- **Hardware Integration**: Uses `navigator.mediaDevices.getUserMedia` with front/rear sensor toggling (`facingMode`).
+- **Clean Hardware Release**: Automatically releases all `MediaStreamTrack` hardware locks upon component unmount, retake, or window close.
+- **Forensic Transparency Advisory**: Explicitly alerts users that pixel values are evaluated directly and that camera-captured media is never assumed authentic simply because it originated from a sensor.
+
+### 8. 🔬 Pre-Inference Media Quality Diagnostics (`QualityMetrics.jsx`)
+- **Sharpness Audit**: Computes Laplacian variance ($\sigma^2_{\text{Laplacian}} < 50.0$) to detect motion blur or soft focus.
+- **Lighting & Contrast**: Calculates pixel intensity standard deviation ($\sigma < 20.0$) and luminance overexposure ($> 225$).
+- **Actionable User Guidance**: Displays contextual recommendations (e.g. *"Image is blurry: please retake with a steady camera"*, *"Lighting is low"*).
+- **Resolution Sizing**: Verifies whether crops meet the $224 \times 224$ px neural receptive field.
+
+### 9. 📑 Forensic Audit Export & Session History
 - **Downloadable PDF & JSON Reports**: Comprehensive forensic certificates with SHA-256 hashes, timestamps, model metadata, and quality metrics.
 - **Local Session History**: Stores recent scans in `localStorage` with preview thumbnails, verdicts, and 1-click workspace reloading.
 - **Ethical User Feedback Modal**: Connected to `POST /api/v1/jobs/feedback` for manual evaluation, adhering to research privacy principles.
+- **Viva & Interview Guide**: Step-by-step presentation script and top 10 examination questions detailed in [DEMO_GUIDE.md](file:///c:/Users/Varsha%20Kolekar/Downloads/Deepfake_Projected/DEMO_GUIDE.md).
 
 ---
 

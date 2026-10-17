@@ -92,6 +92,12 @@ flowchart TD
     VERDICT_RES --> REP_GEN
 ```
 
+<p align="center">
+  <img src="docs/images/architecture_flowchart.png" alt="DeepGuard System Architecture Flowchart" width="100%" />
+  <br/>
+  <em>Figure 1: DeepGuard Six-Tier High-Throughput Forensic Detection & Explainability Architecture.</em>
+</p>
+
 ---
 
 ## 2. End-to-End Execution Sequence Diagram
@@ -186,6 +192,12 @@ sequenceDiagram
   $$x_2 = \min(W, x + 1.25w), \quad y_2 = \min(H, y + 1.25h)$$
   *Crucial scientific rationale*: Face-swap deepfakes leave tell-tale artifacts along the jawline, chin, and hair borders. Standard tight face crops cut these borders off; 25% padding forces the CNN to evaluate the transition boundaries.
 
+<p align="center">
+  <img src="docs/images/forensic_pipeline_stages.png" alt="Forensic Pipeline Stages" width="100%" />
+  <br/>
+  <em>Figure 2: Four-Stage Forensic Pipeline from Quality Audit and 25% Margin Padding to Grad-CAM & 5-Zone Localization.</em>
+</p>
+
 ### Tier 4: Deep Learning Inference Tier
 - **Framework**: PyTorch 2.0+ executed in `torch.no_grad()` inference mode.
 - **Backbone Network**: **EfficientNet-B0** (5.3M parameters).
@@ -201,6 +213,12 @@ sequenceDiagram
   \textbf{INCONCLUSIVE} & \text{if } 0.35 < S < 0.55 \\
   \textbf{Likely FAKE} & \text{if } S \ge 0.55 
   \end{cases}$$
+
+<p align="center">
+  <img src="docs/images/decision_threshold_spectrum.png" alt="Calibrated Dual-Threshold Spectrum" width="95%" />
+  <br/>
+  <em>Figure 3: DeepGuard Calibrated Dual-Threshold Spectrum separating Likely Real, Inconclusive, and Likely Fake zones.</em>
+</p>
 
 ### Tier 5: Explainability & Temporal Aggregation Tier
 - **Grad-CAM (Gradient-Weighted Class Activation Mapping)**:

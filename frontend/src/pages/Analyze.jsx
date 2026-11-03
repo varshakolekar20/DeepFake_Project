@@ -212,9 +212,20 @@ export default function Analyze({ onSaveHistory }) {
         const { job_id } = await initRes.json();
         setActiveJobId(job_id);
 
+        let consecutiveFailures = 0;
         const pollInterval = setInterval(async () => {
           try {
             const jobRes = await fetch(`/api/v1/jobs/${job_id}`);
+            if (!jobRes.ok) {
+              consecutiveFailures += 1;
+              if (consecutiveFailures >= 6) {
+                clearInterval(pollInterval);
+                setIsAnalyzing(false);
+                setErrorMessage("Lost connection to analysis server. Please retry.");
+              }
+              return;
+            }
+            consecutiveFailures = 0;
             const jobData = await jobRes.json();
 
             setProgress(jobData.progress || 20);

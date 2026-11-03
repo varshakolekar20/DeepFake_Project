@@ -7,6 +7,7 @@ import tempfile
 from typing import Dict, Any
 from backend.app.services.video_processor import video_processor
 from backend.app.services.report_generator import ReportGenerator
+from backend.app.api.routes_analyze import to_jsonable
 
 router = APIRouter(prefix="/jobs", tags=["Jobs & Reports"])
 
@@ -17,13 +18,13 @@ async def get_job_status(job_id: str):
     if not job:
         raise HTTPException(status_code=404, detail="Job ID not found.")
         
-    return JSONResponse({
+    return JSONResponse(to_jsonable({
         "job_id": job.job_id,
         "status": job.status,
         "progress": job.progress,
         "result": job.result,
         "error_message": job.error_message
-    })
+    }))
 
 @router.post("/{job_id}/cancel")
 async def cancel_job(job_id: str):

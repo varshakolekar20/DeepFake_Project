@@ -152,14 +152,26 @@ class VideoProcessor:
                 frame_ai_scores = []
                 best_heatmap = None
                 
-                # Re-open or sample from frame_indices to inspect full frames
+                # Cap the number of frames to inspect to 4 evenly-spaced frames
+                # to stay well within Render's 512MB RAM free tier limit
+                step = max(1, len(sampled_results) // 4)
+                eval_entries = sampled_results[::step][:4]
+
                 cap = cv2.VideoCapture(file_path)
-                for f_entry in sampled_results:
+                for f_entry in eval_entries:
                     f_idx = f_entry["frame_index"]
                     cap.set(cv2.CAP_PROP_POS_FRAMES, f_idx)
                     r, f_bgr = cap.read()
                     if r and f_bgr is not None:
-                        f_pil = Image.fromarray(cv2.cvtColor(f_bgr, cv2.COLOR_BGR2RGB))
+                        # Downscale frame for inference to minimize peak memory consumption
+                        h_f, w_f = f_bgr.shape[:2]
+                        if max(h_f, w_f) > 512:
+                            scale = 512.0 / max(h_f, w_f)
+                            f_bgr_small = cv2.resize(f_bgr, (int(w_f * scale), int(h_f * scale)))
+                        else:
+                            f_bgr_small = f_bgr
+                        f_pil = Image.fromarray(cv2.cvtColor(f_bgr_small, cv2.COLOR_BGR2RGB))
+                        
                         ai_pred = model_manager.classify_and_explain(
                             model_manager.aigen_model,
                             f_pil,
@@ -170,7 +182,7 @@ class VideoProcessor:
                         
                         # Add full-frame thumbnail and preview
                         thumb_io = io.BytesIO()
-                        f_pil.resize((96, 96)).save(thumb_io, format="JPEG", quality=75)
+                        f_pil.resize((96, 96)).save(thumb_io, format="JPEG", quality=70)
                         thumb_b64 = "data:image/jpeg;base64," + base64.b64encode(thumb_io.getvalue()).decode("utf-8")
                         f_entry["faces"].append({
                             "face_id": "full_frame",

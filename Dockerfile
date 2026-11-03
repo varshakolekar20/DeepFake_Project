@@ -43,8 +43,7 @@ RUN grep -v "torch" requirements.txt > requirements_cloud.txt && \
 
 # Copy backend source code, model weights, and sample data
 COPY backend/ ./backend/
-COPY weights/ ./weights/
-COPY samples/ ./samples/
+COPY sample_data/ ./sample_data/
 
 # Copy compiled frontend assets from Stage 1 into frontend/dist
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist

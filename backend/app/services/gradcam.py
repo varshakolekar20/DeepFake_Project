@@ -40,7 +40,7 @@ class GradCAM:
         
         # Target score for backpropagation (binary class logit)
         score = logits[0, 0]
-        score.backward(retain_graph=True)
+        score.backward(retain_graph=False)
         
         if self.gradients is None or self.activations is None:
             # Fallback uniform attention if hooks did not fire
@@ -148,7 +148,10 @@ class GradCAM:
         return sorted(suspicious_list, key=lambda x: x.get("score", 0), reverse=True)
 
     def close(self):
-        """Remove PyTorch hook handles to prevent memory leaks."""
+        """Remove PyTorch hook handles and clear gradients to prevent memory leaks."""
         for handle in self.hook_handles:
             handle.remove()
         self.hook_handles.clear()
+        self.gradients = None
+        self.activations = None
+        self.model.zero_grad(set_to_none=True)

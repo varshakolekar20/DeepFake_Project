@@ -12,10 +12,14 @@ class FaceExtractor:
     """
     def __init__(self):
         self.face_cascade = None
+        self.face_cascade_alt = None
+        self.face_cascade_profile = None
         try:
             if hasattr(cv2, 'CascadeClassifier') and hasattr(cv2, 'data'):
-                cascade_path = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
-                self.face_cascade = cv2.CascadeClassifier(cascade_path)
+                base = cv2.data.haarcascades
+                self.face_cascade = cv2.CascadeClassifier(base + 'haarcascade_frontalface_default.xml')
+                self.face_cascade_alt = cv2.CascadeClassifier(base + 'haarcascade_frontalface_alt2.xml')
+                self.face_cascade_profile = cv2.CascadeClassifier(base + 'haarcascade_profileface.xml')
         except Exception as e:
             print(f"[FaceExtractor] CascadeClassifier initialization warning: {e}")
         
@@ -55,40 +59,80 @@ class FaceExtractor:
         gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
         
         detected_boxes = []
-        if self.face_cascade is not None:
-            try:
-                # Primary pass: standard sensitivity
+        try:
+            # 1. Primary pass: frontal default cascade
+            if self.face_cascade is not None:
                 boxes = self.face_cascade.detectMultiScale(
                     gray,
                     scaleFactor=1.1,
                     minNeighbors=4,
                     minSize=(settings.MIN_FACE_RESOLUTION, settings.MIN_FACE_RESOLUTION)
                 )
-                # Adaptive secondary pass: higher sensitivity for angles, lighting, or smaller faces
-                if len(boxes) == 0:
-                    boxes = self.face_cascade.detectMultiScale(
-                        gray,
-                        scaleFactor=1.05,
-                        minNeighbors=2,
-                        minSize=(28, 28)
-                    )
                 if len(boxes) > 0:
-                    # Apply Non-Maximum Suppression to eliminate overlapping duplicate detections
-                    rects = [[int(bx), int(by), int(bw), int(bh)] for (bx, by, bw, bh) in boxes]
-                    scores = [float(bw * bh) for (bx, by, bw, bh) in boxes]
-                    indices = cv2.dnn.NMSBoxes(rects, scores, score_threshold=0.0, nms_threshold=0.3)
-                    if len(indices) > 0:
-                        indices = indices.flatten()
-                        filtered = [boxes[i] for i in indices]
-                        # Filter out tiny noise boxes if larger dominant faces are present
-                        max_area = max(bw * bh for (_, _, bw, bh) in filtered)
-                        if max_area >= 10000: # Largest face is at least 100x100
-                            filtered = [b for b in filtered if (b[2] * b[3]) >= max(2500, max_area * 0.08)]
-                        # Sort by area descending so primary subject face is always Face 1
-                        filtered.sort(key=lambda b: b[2] * b[3], reverse=True)
-                        detected_boxes = filtered
-            except Exception as e:
-                print(f"[FaceExtractor] detectMultiScale warning: {e}")
+                    detected_boxes.extend(boxes)
+
+            # 2. Secondary pass: frontal alt2 cascade (for varying angles, lighting, expressions)
+            if len(detected_boxes) == 0 and self.face_cascade_alt is not None:
+                boxes = self.face_cascade_alt.detectMultiScale(
+                    gray,
+                    scaleFactor=1.05,
+                    minNeighbors=3,
+                    minSize=(28, 28)
+                )
+                if len(boxes) > 0:
+                    detected_boxes.extend(boxes)
+
+            # 3. Tertiary pass: profile cascade (for side-facing angles)
+            if len(detected_boxes) == 0 and self.face_cascade_profile is not None:
+                boxes = self.face_cascade_profile.detectMultiScale(
+                    gray,
+                    scaleFactor=1.05,
+                    minNeighbors=3,
+                    minSize=(28, 28)
+                )
+                if len(boxes) > 0:
+                    detected_boxes.extend(boxes)
+
+            # 4. Sensitive fallback pass: tight scale factor for cropped portraits, closeups and subtle contrast
+            if len(detected_boxes) == 0 and self.face_cascade is not None:
+                boxes = self.face_cascade.detectMultiScale(
+                    gray,
+                    scaleFactor=1.02,
+                    minNeighbors=1,
+                    minSize=(28, 28)
+                )
+                if len(boxes) > 0:
+                    detected_boxes.extend(boxes)
+
+            if len(detected_boxes) == 0 and self.face_cascade_alt is not None:
+                boxes = self.face_cascade_alt.detectMultiScale(
+                    gray,
+                    scaleFactor=1.02,
+                    minNeighbors=1,
+                    minSize=(28, 28)
+                )
+                if len(boxes) > 0:
+                    detected_boxes.extend(boxes)
+
+            if len(detected_boxes) > 0:
+                # Apply Non-Maximum Suppression to eliminate overlapping duplicate detections
+                rects = [[int(bx), int(by), int(bw), int(bh)] for (bx, by, bw, bh) in detected_boxes]
+                scores = [float(bw * bh) for (bx, by, bw, bh) in detected_boxes]
+                indices = cv2.dnn.NMSBoxes(rects, scores, score_threshold=0.0, nms_threshold=0.3)
+                if len(indices) > 0:
+                    indices = indices.flatten()
+                    filtered = [detected_boxes[i] for i in indices]
+                    # Filter out tiny noise boxes if larger dominant faces are present
+                    max_area = max(bw * bh for (_, _, bw, bh) in filtered)
+                    if max_area >= 10000: # Largest face is at least 100x100
+                        filtered = [b for b in filtered if (b[2] * b[3]) >= max(2500, max_area * 0.08)]
+                    # Sort by area descending so primary subject face is always Face 1
+                    filtered.sort(key=lambda b: b[2] * b[3], reverse=True)
+                    detected_boxes = filtered
+                else:
+                    detected_boxes = []
+        except Exception as e:
+            print(f"[FaceExtractor] detectMultiScale warning: {e}")
         
         faces_data = []
         for idx, (x, y, w, h) in enumerate(detected_boxes):

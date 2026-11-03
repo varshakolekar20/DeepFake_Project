@@ -66,22 +66,34 @@ async def analyze_image(
     if mode == "facial":
         faces = face_extractor.extract_faces(image_bgr)
         
+        # If no face detected, automatically fall back to Full-Frame AI-Generated Detection
+        # so the user never gets blocked or confused!
         if len(faces) == 0:
+            pred = model_manager.classify_and_explain(
+                model_manager.aigen_model, 
+                pil_img, 
+                mode="aigen"
+            )
             return JSONResponse(to_jsonable({
-                "mode": "facial",
-                "verdict": "Unable to Analyze",
-                "verdict_badge": "muted",
-                "raw_score": 0.0,
-                "percentage": 0.0,
-                "confidence": 0.0,
+                "mode": "aigen",
+                "verdict": pred["verdict"],
+                "verdict_badge": pred["verdict_badge"],
+                "raw_score": pred["raw_score"],
+                "percentage": pred["percentage"],
+                "display_confidence_pct": pred.get("display_confidence_pct", round(pred["confidence"] * 100, 1)),
+                "confidence": pred["confidence"],
                 "face_count": 0,
+                "auto_fallback": True,
                 "quality": quality,
                 "explanation": (
-                    "No human faces were detected in the uploaded image. "
-                    "DeepGuard facial manipulation mode requires a clear, unobstructed facial region (min 40x40 px)."
+                    "No human faces were isolated, so DeepGuard automatically conducted full-frame synthetic media analysis. "
+                    + pred["explanation"]
                 ),
                 "faces": [],
-                "heatmap_data_uri": None
+                "heatmap_data_uri": pred["heatmap_data_uri"],
+                "suspicious_regions": pred.get("suspicious_regions", []),
+                "thresholds": pred["thresholds"],
+                "model_metadata": model_manager.aigen_metadata
             }))
 
         face_results = []

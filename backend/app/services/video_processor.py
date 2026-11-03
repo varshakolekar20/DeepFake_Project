@@ -146,14 +146,95 @@ class VideoProcessor:
             # Video Aggregation and Honest Uncertainty Handling
             coverage_pct = round((faces_detected_count / max(1, len(sampled_results))) * 100, 1)
             
-            if faces_detected_count == 0:
-                final_verdict = "Unable to analyze media"
-                verdict_badge = "muted"
-                aggregate_score = 0.0
-                explanation = (
-                    "No human faces were detected across the sampled video frames. "
-                    "DeepGuard facial manipulation detection requires clearly visible human faces."
-                )
+            # If no human faces detected across the video (e.g. AI animals, scenery, non-human video),
+            # automatically evaluate sampled keyframes using the Full-Frame AI-Generated Model!
+            if faces_detected_count == 0 and len(sampled_results) > 0:
+                frame_ai_scores = []
+                best_heatmap = None
+                
+                # Re-open or sample from frame_indices to inspect full frames
+                cap = cv2.VideoCapture(file_path)
+                for f_entry in sampled_results:
+                    f_idx = f_entry["frame_index"]
+                    cap.set(cv2.CAP_PROP_POS_FRAMES, f_idx)
+                    r, f_bgr = cap.read()
+                    if r and f_bgr is not None:
+                        f_pil = Image.fromarray(cv2.cvtColor(f_bgr, cv2.COLOR_BGR2RGB))
+                        ai_pred = model_manager.classify_and_explain(
+                            model_manager.aigen_model,
+                            f_pil,
+                            mode="aigen"
+                        )
+                        frame_ai_scores.append(ai_pred["raw_score"])
+                        f_entry["max_score"] = ai_pred["raw_score"]
+                        
+                        # Add full-frame thumbnail and preview
+                        thumb_io = io.BytesIO()
+                        f_pil.resize((96, 96)).save(thumb_io, format="JPEG", quality=75)
+                        thumb_b64 = "data:image/jpeg;base64," + base64.b64encode(thumb_io.getvalue()).decode("utf-8")
+                        f_entry["faces"].append({
+                            "face_id": "full_frame",
+                            "bbox": [0, 0, f_pil.width, f_pil.height],
+                            "raw_score": ai_pred["raw_score"],
+                            "verdict": ai_pred["verdict"],
+                            "thumbnail": thumb_b64,
+                            "heatmap_preview": ai_pred["heatmap_data_uri"]
+                        })
+                        if best_heatmap is None or ai_pred["raw_score"] > 0.5:
+                            best_heatmap = ai_pred["heatmap_data_uri"]
+                cap.release()
+                
+                if len(frame_ai_scores) > 0:
+                    mean_score = float(np.mean(frame_ai_scores))
+                    max_score = float(np.max(frame_ai_scores))
+                    aggregate_score = round(0.5 * max_score + 0.5 * mean_score, 4)
+                    
+                    if aggregate_score >= settings.TAU_HIGH_MANIPULATED:
+                        final_verdict = "Likely FAKE"
+                        verdict_badge = "destructive"
+                        display_conf = round(aggregate_score * 100, 1)
+                        explanation = (
+                            f"No human faces were isolated, so DeepGuard evaluated the full video frames for AI synthesis. "
+                            f"Synthetic AI generative patterns detected across sampled frames (Likelihood: {display_conf}%)."
+                        )
+                        suspicious_regions = [{
+                            "region": "Full-Frame Video Synthesis",
+                            "severity": "HIGH",
+                            "badge": "bg-red-500/10 text-red-500 border-red-500/30",
+                            "description": "High-frequency neural upsampler artifacts or generative diffusion patterns detected across video frames."
+                        }]
+                    elif aggregate_score <= settings.TAU_LOW_AUTHENTIC:
+                        final_verdict = "Likely REAL"
+                        verdict_badge = "success"
+                        display_conf = round((1.0 - aggregate_score) * 100, 1)
+                        explanation = (
+                            f"No human faces were isolated, so DeepGuard evaluated the full video frames. "
+                            f"Frames showed authentic natural camera lens characteristics (Authenticity confidence: {display_conf}%)."
+                        )
+                        suspicious_regions = [{
+                            "region": "Natural Camera Capture",
+                            "severity": "NORMAL",
+                            "badge": "bg-emerald-500/10 text-emerald-500 border-emerald-500/30",
+                            "description": "Natural optical camera noise and frequency roll-off detected."
+                        }]
+                    else:
+                        final_verdict = "INCONCLUSIVE — Unable to determine reliably"
+                        verdict_badge = "warning"
+                        display_conf = 50.0
+                        explanation = f"Full-frame analysis showed borderline metrics (Score: {round(aggregate_score * 100, 1)}%)."
+                        suspicious_regions = [{
+                            "region": "Sampled Video Frames",
+                            "severity": "ELEVATED",
+                            "badge": "bg-amber-500/10 text-amber-500 border-amber-500/30",
+                            "description": "Video compression or motion blur detected across sampled frames."
+                        }]
+                else:
+                    final_verdict = "Unable to analyze media"
+                    verdict_badge = "muted"
+                    aggregate_score = 0.0
+                    display_conf = 0.0
+                    explanation = "Unable to extract video frames for inspection."
+                    suspicious_regions = []
             elif len(all_face_scores) > 0:
                 scores_arr = np.array(all_face_scores)
                 median_score = float(np.median(scores_arr))

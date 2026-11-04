@@ -195,18 +195,38 @@ export default function Analyze({ onSaveHistory }) {
           });
         }
       } else {
-        // Video Analysis (Background Job)
+        // Video Analysis (Background Job with resilient upload retry)
         const formData = new FormData();
         formData.append('file', file);
 
-        const initRes = await fetch('/api/v1/analyze/video', {
-          method: 'POST',
-          body: formData,
-        });
+        let initRes = null;
+        let submitAttempt = 0;
+        while (submitAttempt < 3) {
+          try {
+            submitAttempt++;
+            initRes = await fetch('/api/v1/analyze/video', {
+              method: 'POST',
+              body: formData,
+            });
+            if (initRes.ok) break;
+            if (initRes.status >= 500 && submitAttempt < 3) {
+              await new Promise(r => setTimeout(r, 2000));
+              continue;
+            }
+            break;
+          } catch (netErr) {
+            if (submitAttempt < 3) {
+              // Wait 2.5s for container spin-up and retry automatically
+              await new Promise(r => setTimeout(r, 2500));
+            } else {
+              throw new Error("Unable to reach analysis server. The cloud server instance may be waking up from sleep. Please wait a few seconds and retry.");
+            }
+          }
+        }
 
-        if (!initRes.ok) {
-          const errData = await initRes.json().catch(() => ({}));
-          throw new Error(errData.detail || "Video submission failed.");
+        if (!initRes || !initRes.ok) {
+          const errData = initRes ? await initRes.json().catch(() => ({})) : {};
+          throw new Error(errData.detail || "Video submission failed. Please verify the file and retry.");
         }
 
         const { job_id } = await initRes.json();
@@ -232,7 +252,7 @@ export default function Analyze({ onSaveHistory }) {
 
             if (jobData.status === 'completed') {
               clearInterval(pollInterval);
-              const finalRes = { ...jobData.result, mode: 'facial' };
+              const finalRes = { ...jobData.result, mode: jobData.result?.mode || 'facial' };
               setResult(finalRes);
               setIsAnalyzing(false);
               setActiveJobId(null);
@@ -241,7 +261,7 @@ export default function Analyze({ onSaveHistory }) {
                 onSaveHistory({
                   fileName: file.name,
                   fileType: 'video',
-                  mode: 'facial',
+                  mode: finalRes.mode,
                   verdict: finalRes.verdict,
                   display_confidence_pct: finalRes.display_confidence_pct,
                   percentage: finalRes.percentage,
@@ -256,9 +276,12 @@ export default function Analyze({ onSaveHistory }) {
               setErrorMessage(jobData.error_message || "Video analysis was interrupted.");
             }
           } catch (pollErr) {
-            clearInterval(pollInterval);
-            setIsAnalyzing(false);
-            setErrorMessage("Failed to fetch job updates.");
+            consecutiveFailures += 1;
+            if (consecutiveFailures >= 6) {
+              clearInterval(pollInterval);
+              setIsAnalyzing(false);
+              setErrorMessage("Unable to fetch job updates.");
+            }
           }
         }, 1200);
 

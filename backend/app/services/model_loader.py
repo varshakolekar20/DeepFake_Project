@@ -112,15 +112,26 @@ class ModelManager:
             logit = model(input_tensor).item()
             prob_fake = float(torch.sigmoid(torch.tensor(logit)).item())
             
-        # Spatial-Frequency Fusion for AI-Generated Images
+        # Spatial-Frequency Fusion for AI-Generated Media
         if mode == "aigen":
             fft_score = self._compute_fft_anomaly(image_pil)
-            if fft_score <= 0.30:
-                # Natural optical sensor distribution: camera photo evidence
-                prob_fake = min(prob_fake, float(fft_score * 0.75))
-            elif fft_score >= 0.38:
-                # Elevated high-frequency anomaly from synthetic upsamplers
-                prob_fake = max(prob_fake, min(1.0, prob_fake + float(0.35 * (fft_score - 0.35))))
+            # Modern diffusion and generative video models (Runway, Sora, Midjourney) produce
+            # low-frequency smooth spectra (fft <= 0.30) while containing recognizable visual artifacts.
+            # We preserve the CNN's deep feature representations and use FFT as a secondary cue.
+            if prob_fake >= settings.TAU_HIGH_MANIPULATED:
+                # Strong synthetic signal from CNN: retain CNN conviction, boost if upsampler artifacts exist
+                if fft_score >= 0.38:
+                    prob_fake = min(1.0, prob_fake + float(0.20 * (fft_score - 0.35)))
+            elif prob_fake <= settings.TAU_LOW_AUTHENTIC:
+                # Strong authentic signal from CNN: retain authentic verdict, slightly reward natural roll-off
+                if fft_score <= 0.28:
+                    prob_fake = max(0.0, prob_fake * 0.9)
+            else:
+                # Borderline CNN signal (0.35 < prob_fake < 0.55): use frequency spectrum as secondary discriminator
+                if fft_score >= 0.40:
+                    prob_fake = min(1.0, prob_fake + 0.15)
+                elif fft_score <= 0.22:
+                    prob_fake = max(0.0, prob_fake - 0.10)
             
         # Honest Dual-Threshold Decision Rule
         tau_high = settings.TAU_HIGH_MANIPULATED

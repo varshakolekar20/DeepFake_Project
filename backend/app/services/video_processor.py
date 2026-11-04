@@ -91,7 +91,15 @@ class VideoProcessor:
 
                 timestamp_sec = round(frame_idx / fps, 2)
                 quality = face_extractor.assess_quality(frame_bgr)
-                faces = face_extractor.extract_faces(frame_bgr)
+                raw_faces = face_extractor.extract_faces(frame_bgr)
+
+                # Isolate significant human portrait faces. In video analysis, filter out
+                # background clutter and distant crowd noise (< 1.8% of frame area)
+                frame_area = frame_bgr.shape[0] * frame_bgr.shape[1]
+                faces = [
+                    f for f in raw_faces
+                    if (f["bbox"]["width"] * f["bbox"]["height"]) >= int(0.018 * frame_area)
+                ]
 
                 frame_entry = {
                     "frame_index": frame_idx,
@@ -338,6 +346,7 @@ class VideoProcessor:
                 suspicious_regions = []
 
             job.result = {
+                "mode": "aigen" if faces_detected_count == 0 else "facial",
                 "verdict": final_verdict,
                 "verdict_badge": verdict_badge,
                 "aggregate_score": aggregate_score,
@@ -350,6 +359,7 @@ class VideoProcessor:
                 "analysis_coverage_pct": coverage_pct,
                 "suspicious_frames": suspicious_frames[:6],
                 "suspicious_regions": suspicious_regions if 'suspicious_regions' in locals() else [],
+                "heatmap_data_uri": best_heatmap if ('best_heatmap' in locals() and best_heatmap) else (sampled_results[0]["faces"][0].get("heatmap_preview") if (sampled_results and sampled_results[0].get("faces") and "heatmap_preview" in sampled_results[0]["faces"][0]) else None),
                 "timeline": sampled_results,
                 "explanation": explanation
             }
